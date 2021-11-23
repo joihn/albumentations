@@ -62,6 +62,7 @@ class ShiftScaleRotate(DualTransform):
         shift_limit_y=None,
         always_apply=False,
         p=0.5,
+        reflect_bb = False
     ):
         super(ShiftScaleRotate, self).__init__(always_apply, p)
         self.shift_limit_x = to_tuple(shift_limit_x if shift_limit_x is not None else shift_limit)
@@ -72,9 +73,10 @@ class ShiftScaleRotate(DualTransform):
         self.border_mode = border_mode
         self.value = value
         self.mask_value = mask_value
+        self.reflect_bb = reflect_bb
 
     def apply(self, img, angle=0, scale=0, dx=0, dy=0, interpolation=cv2.INTER_LINEAR, **params):
-        return F.shift_scale_rotate(img, angle, scale, dx, dy, interpolation, self.border_mode, self.value)
+            return F.shift_scale_rotate(img, angle, scale, dx, dy, interpolation, self.border_mode, self.value)
 
     def apply_to_mask(self, img, angle=0, scale=0, dx=0, dy=0, **params):
         return F.shift_scale_rotate(img, angle, scale, dx, dy, cv2.INTER_NEAREST, self.border_mode, self.mask_value)
@@ -89,9 +91,23 @@ class ShiftScaleRotate(DualTransform):
             "dx": random.uniform(self.shift_limit_x[0], self.shift_limit_x[1]),
             "dy": random.uniform(self.shift_limit_y[0], self.shift_limit_y[1]),
         }
-
+    def ass_pos(self, num):
+        if num < 0:
+            return 0
+        else:
+            return num
     def apply_to_bbox(self, bbox, angle, scale, dx, dy, **params):
-        return F.bbox_shift_scale_rotate(bbox, angle, scale, dx, dy, **params)
+        if not self.reflect_bb:
+            return F.bbox_shift_scale_rotate(bbox, angle, scale, dx, dy, **params)
+        else:
+
+
+            main =  F.bbox_shift_scale_rotate(bbox, angle, scale, dx, dy, **params)
+            if dx > 1-bbox[2]:
+                new_bb = (self.ass_pos(dx-bbox[2]), self.ass_pos(0.3), self.ass_pos(dx-bbox[0]), self.ass_pos(0.4))
+                return (new_bb,  F.bbox_shift_scale_rotate(bbox, angle, scale, dx, dy, **params))
+            else:
+                return F.bbox_shift_scale_rotate(bbox, angle, scale, dx, dy, **params)
 
     def get_transform_init_args(self):
         return {
